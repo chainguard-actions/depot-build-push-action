@@ -1,0 +1,8 @@
+{
+  "owner": "depot",
+  "name": "build-push-action",
+  "alias": "depot-build-push-action",
+  "visibility": "internal",
+  "description": "GitHub Action to build and push Docker images with Depot",
+  "block_publish": false
+}
