@@ -8,7 +8,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 
 | Version | Tag | Upstream commit |
 |---------|-----|-----------------|
-| v1.17.0 | [`v1.17.0`](https://github.com/chainguard-actions/depot--build-push-action/tree/v1.17.0) | — |
+| v1.17.0 | [`v1.17.0`](https://github.com/chainguard-actions/depot-build-push-action/tree/v1.17.0) | — |
 
 ## Privacy
 
