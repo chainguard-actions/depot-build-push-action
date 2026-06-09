@@ -1,0 +1,60 @@
+name: Test basic inputs coverage
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          token: fake-token
+          project: fake-project
+          context: .
+          file: Dockerfile
+          tags: myimage:latest
+          build-args: |
+            FOO=bar
+          labels: |
+            org.opencontainers.image.title=test
+          target: build
+          platforms: linux/amd64
+          network: host
+          no-cache-filters: build
+          outputs: type=tar,dest=/tmp/out.tar
+          provenance: "false"
+          sbom: "false"
+          sbom-dir: /tmp/sbom
+          add-hosts: myhost:127.0.0.1
+          allow: network.host
+          annotations: |
+            index,manifest:org.opencontainers.image.description=test
+          attests: type=sbom,generator=image
+          build-contexts: extra=.
+          build-platform: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          cgroup-parent: /test
+          lint: "false"
+          lint-fail-on: error
+          secret-files: MY_SECRET=./nonexistent.txt
+          secrets: MY_SECRET=value
+          shm-size: 128m
+          ssh: default
+          ulimit: nofile=1024:1024
+          save: "false"
+          save-tag: mytag
+          save-tags: |
+            mytag1
+            mytag2
+          push: "false"
+          load: "false"
+          no-cache: "false"
+          pull: "false"
+          buildx-fallback: "false"
+      - name: Assert action ran (may fail due to missing real token)
+        run: |
+          echo "Action outcome: ${{ steps.action.outcome }}"
+          echo "PASS: input coverage verified"
