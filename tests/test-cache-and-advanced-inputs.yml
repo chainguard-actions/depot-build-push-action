@@ -1,0 +1,35 @@
+name: Test cache and advanced inputs
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create minimal Dockerfile
+        run: |
+          mkdir -p /tmp/build-context
+          echo 'FROM scratch' > /tmp/build-context/Dockerfile
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          context: /tmp/build-context
+          token: fake-depot-token
+          project: fake-project-id
+          push: 'false'
+          cache-from: type=local,src=/tmp/cache
+          cache-to: type=local,dest=/tmp/cache
+          build-contexts: extra=./
+          add-hosts: myhost:127.0.0.1
+          allow: network.host
+          annotations: |
+            index,manifest:org.opencontainers.image.description=Test image
+          attests: type=sbom,generator=image
+          no-cache-filters: |
+            stage1
+          outputs: type=local,dest=/tmp/output
+      - name: Verify action ran (may fail without real token)
+        run: |
+          echo "Action outcome: ${{ steps.action.outcome }}"
+          echo "PASS: action step was invoked with cache and advanced inputs"

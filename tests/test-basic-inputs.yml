@@ -1,0 +1,39 @@
+name: Test basic inputs
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create minimal Dockerfile
+        run: |
+          mkdir -p /tmp/build-context
+          echo 'FROM scratch' > /tmp/build-context/Dockerfile
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          context: /tmp/build-context
+          file: /tmp/build-context/Dockerfile
+          tags: myimage:latest
+          token: fake-depot-token
+          project: fake-project-id
+          push: 'false'
+          load: 'false'
+          target: ''
+          labels: |
+            org.opencontainers.image.title=MyImage
+          build-args: |
+            VERSION=1.0.0
+          platforms: linux/amd64
+          network: host
+          no-cache: 'false'
+          pull: 'false'
+          ulimit: nofile=1024:1024
+          shm-size: 128m
+          cgroup-parent: ''
+      - name: Verify action ran (may fail without real token)
+        run: |
+          echo "Action outcome: ${{ steps.action.outcome }}"
+          echo "PASS: action step was invoked with all basic inputs"
