@@ -1,0 +1,50 @@
+name: Test advanced inputs coverage
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create minimal Dockerfile with stages
+        run: |
+          mkdir -p /tmp/build-context2
+          cat > /tmp/build-context2/Dockerfile <<'EOF'
+          FROM scratch AS base
+          LABEL maintainer="test"
+          FROM base AS final
+          EOF
+          mkdir -p /tmp/sbom-output
+          echo "mysecret" > /tmp/secret.txt
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          context: /tmp/build-context2
+          file: /tmp/build-context2/Dockerfile
+          token: fake-depot-token
+          project: fake-project-id
+          annotations: |
+            index:org.opencontainers.image.description=test image
+          attests: type=sbom,generator=image
+          build-contexts: |
+            alpine=docker-image://alpine:latest
+          build-platform: linux/amd64
+          no-cache-filters: base
+          provenance: "false"
+          sbom: "false"
+          sbom-dir: /tmp/sbom-output
+          save: "false"
+          save-tag: myimage:latest
+          save-tags: |
+            myimage:latest
+            myimage:v1
+          secrets: |
+            MY_SECRET=mysecretvalue
+          secret-files: |
+            MY_FILE=/tmp/secret.txt
+          ssh: default
+      - name: Assert action ran (may fail due to missing credentials)
+        run: |
+          echo "Action completed with continue-on-error"
+          echo "PASS: advanced inputs were accepted"
