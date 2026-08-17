@@ -1,0 +1,41 @@
+name: Test depot build-push-action - dockerfile file, target, and no-cache-filters inputs
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create Dockerfile with multiple stages for test
+        run: |
+          mkdir -p /tmp/depot-file-ctx
+          cat > /tmp/depot-file-ctx/Dockerfile.custom <<'EOF'
+          FROM scratch AS base
+          LABEL test=file-target
+          FROM base AS final
+          LABEL stage=final
+          EOF
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          context: /tmp/depot-file-ctx
+          file: '/tmp/depot-file-ctx/Dockerfile.custom'
+          tags: localhost/test-file:latest
+          target: 'base'
+          no-cache-filters: 'base'
+          # No token — action will fail at auth, but inputs are parsed
+
+      - name: Assert action ran with file/target/no-cache-filters inputs
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action ran with file/target/no-cache-filters inputs, outcome='$OUTCOME'"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

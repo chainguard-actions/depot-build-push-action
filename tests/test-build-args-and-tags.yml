@@ -1,0 +1,39 @@
+name: Test depot build-push action with build-args and tags inputs
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run action with build-args and tags (expect failure due to no valid token)
+        id: action
+        uses: .
+        with:
+          context: .
+          token: 'invalid-token-for-testing'
+          project: 'fake-project-id'
+          push: 'false'
+          load: 'false'
+          tags: |
+            myimage:latest
+            myimage:1.0.0
+          build-args: |
+            VERSION=1.0.0
+            BUILD_DATE=2024-01-01
+          labels: |
+            org.opencontainers.image.title=MyImage
+            org.opencontainers.image.version=1.0.0
+        continue-on-error: true
+
+      - name: Assert action failed (expected without valid depot credentials)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" != "failure" ]; then
+            echo "FAIL: expected action to fail with invalid depot token, got outcome=$OUTCOME"
+            exit 1
+          fi
+          echo "PASS: action correctly failed with invalid token (build-args and tags inputs were accepted)"

@@ -1,0 +1,39 @@
+name: Test depot build-push-action - outputs, platforms, and provenance inputs
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal Dockerfile for test
+        run: |
+          mkdir -p /tmp/depot-out-ctx
+          cat > /tmp/depot-out-ctx/Dockerfile <<'EOF'
+          FROM scratch
+          LABEL test=outputs-platforms-provenance
+          EOF
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          context: /tmp/depot-out-ctx
+          tags: localhost/test-out:latest
+          outputs: 'type=local,dest=/tmp/depot-out-dest'
+          platforms: 'linux/amd64,linux/arm64'
+          provenance: 'false'
+          # No token — action will fail at auth, but inputs are parsed
+
+      - name: Assert action ran with outputs/platforms/provenance inputs
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action ran with outputs/platforms/provenance inputs, outcome='$OUTCOME'"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

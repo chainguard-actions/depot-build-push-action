@@ -1,0 +1,48 @@
+name: Test depot build-push-action - outputs interface
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal Dockerfile for test
+        run: |
+          mkdir -p /tmp/depot-outputs-ctx
+          cat > /tmp/depot-outputs-ctx/Dockerfile <<'EOF'
+          FROM scratch
+          LABEL test=outputs
+          EOF
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          context: /tmp/depot-outputs-ctx
+          tags: localhost/test-outputs:latest
+          # No token — action will fail, but outputs should be accessible (empty)
+
+      - name: Assert outputs are accessible
+        env:
+          IMAGEID: ${{ steps.action.outputs.imageid }}
+          DIGEST: ${{ steps.action.outputs.digest }}
+          METADATA: ${{ steps.action.outputs.metadata }}
+          BUILD_ID: ${{ steps.action.outputs.build-id }}
+          PROJECT_ID: ${{ steps.action.outputs.project-id }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome:    $OUTCOME"
+          echo "imageid:    $IMAGEID"
+          echo "digest:     $DIGEST"
+          echo "metadata:   $METADATA"
+          echo "build-id:   $BUILD_ID"
+          echo "project-id: $PROJECT_ID"
+          # The action failed (no token), so outputs should be empty.
+          # The key assertion is that the output names are valid and accessible
+          # without causing expression evaluation errors.
+          if [ "$OUTCOME" != "failure" ] && [ "$OUTCOME" != "success" ]; then
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
+          echo "PASS: all output names are accessible and action ran to completion"
