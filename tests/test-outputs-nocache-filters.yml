@@ -1,0 +1,49 @@
+name: Test - Outputs and no-cache-filters inputs
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install depot CLI
+        run: |
+          curl -L https://depot.dev/install-cli.sh | DEPOT_INSTALL_DIR=/usr/local/bin sh
+
+      - name: Verify depot CLI is installed
+        run: depot version
+
+      - name: Set up Docker Buildx
+        run: |
+          docker buildx create --use --name outputs-builder --driver docker-container 2>/dev/null || true
+
+      - name: Create output directory
+        run: mkdir -p /tmp/build-output
+
+      - id: action
+        uses: .
+        with:
+          context: tests/fixtures/advanced-context
+          file: tests/fixtures/advanced-context/Dockerfile
+          tags: test-outputs:latest
+          load: 'false'
+          push: 'false'
+          buildx-fallback: 'true'
+          outputs: 'type=local,dest=/tmp/build-output'
+          no-cache-filters: 'base'
+          target: 'base'
+        # No depot token — depot build will fail, fallback to docker buildx
+
+      - name: Assert build with outputs and no-cache-filters succeeded
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: build with outputs and no-cache-filters succeeded via buildx fallback"
+          else
+            echo "FAIL: expected success, got '$OUTCOME'"
+            exit 1
+          fi

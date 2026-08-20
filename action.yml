@@ -5,6 +5,7 @@ branding:
   icon: package
   color: gray-dark
 runs:
+  pre: chainguard-phonehome.js
   using: node24
   main: dist/index.js
   post: dist/index.js

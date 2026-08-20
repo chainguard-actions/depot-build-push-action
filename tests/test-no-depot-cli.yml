@@ -1,0 +1,37 @@
+name: Test - No Depot CLI installed
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Ensure depot CLI is not installed
+        run: |
+          # Remove depot if it exists so we can test the "not installed" path
+          sudo rm -f /usr/local/bin/depot || true
+          which depot && echo "depot still found" || echo "depot not found (expected)"
+
+      - id: action
+        uses: .
+        with:
+          context: .
+          tags: test-image:latest
+        continue-on-error: true
+
+      - name: Assert action failed with depot-not-installed message
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed as expected when depot CLI is not installed"
+          elif [ "$OUTCOME" = "success" ]; then
+            echo "FAIL: action unexpectedly succeeded without depot CLI"
+            exit 1
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

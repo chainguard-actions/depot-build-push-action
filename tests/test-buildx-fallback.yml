@@ -1,0 +1,43 @@
+name: Test - Buildx fallback when depot build fails
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install depot CLI
+        run: |
+          curl -L https://depot.dev/install-cli.sh | DEPOT_INSTALL_DIR=/usr/local/bin sh
+
+      - name: Verify depot CLI is installed
+        run: depot version
+
+      - name: Set up Docker Buildx
+        run: |
+          docker buildx create --use --name test-builder 2>/dev/null || true
+
+      - id: action
+        uses: .
+        with:
+          context: tests/fixtures/docker-context
+          file: tests/fixtures/docker-context/Dockerfile
+          tags: test-image:latest
+          load: 'false'
+          push: 'false'
+          buildx-fallback: 'true'
+        # No depot token provided — depot build will fail, then fall back to docker buildx
+
+      - name: Assert build succeeded via buildx fallback
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action succeeded via buildx fallback"
+          else
+            echo "FAIL: expected success via buildx fallback, got '$OUTCOME'"
+            exit 1
+          fi

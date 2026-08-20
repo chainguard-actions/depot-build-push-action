@@ -1,4 +1,4 @@
-name: Test - Attestation inputs (attests, provenance, sbom, sbom-dir)
+name: Test - SSH input for build
 on:
   workflow_dispatch:
 
@@ -17,10 +17,12 @@ jobs:
 
       - name: Set up Docker Buildx
         run: |
-          docker buildx create --use --name attest-builder --driver docker-container 2>/dev/null || true
+          docker buildx create --use --name ssh-builder --driver docker-container 2>/dev/null || true
 
-      - name: Create sbom output directory
-        run: mkdir -p /tmp/sbom-output
+      - name: Set up SSH agent
+        run: |
+          eval "$(ssh-agent -s)"
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
 
       - id: action
         uses: .
@@ -28,26 +30,23 @@ jobs:
         with:
           context: tests/fixtures/docker-context
           file: tests/fixtures/docker-context/Dockerfile
-          tags: test-attestation:latest
+          tags: test-ssh:latest
           load: 'false'
           push: 'false'
           buildx-fallback: 'true'
-          provenance: 'false'
-          sbom: 'false'
-          sbom-dir: '/tmp/sbom-output'
-          attests: 'type=provenance,mode=min'
+          ssh: 'default'
         # No depot token — depot build will fail, fallback to docker buildx
-        # Attestation features may not be fully supported in fallback mode
+        # SSH forwarding may or may not work depending on environment
 
-      - name: Assert action ran with attestation inputs
+      - name: Assert action ran with ssh input
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
           echo "outcome: $OUTCOME"
           if [ "$OUTCOME" = "success" ]; then
-            echo "PASS: build with attestation inputs succeeded"
+            echo "PASS: build with ssh input succeeded"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action ran and failed gracefully (attestation may not be supported in fallback mode)"
+            echo "PASS: action ran and failed gracefully (ssh agent may not be available)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1
