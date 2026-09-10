@@ -1,4 +1,4 @@
-name: Test - Cache options, network, and cgroup-parent with buildx fallback
+name: Test - Labels, annotations, provenance, sbom, attests with buildx fallback
 on:
   workflow_dispatch:
 
@@ -17,19 +17,26 @@ jobs:
 
       - name: Set up Docker Buildx
         run: |
-          docker buildx create --use --name cache-builder 2>/dev/null || true
+          docker buildx create --use --name labels-builder 2>/dev/null || true
+
+      - name: Create sbom output directory
+        run: mkdir -p /tmp/sbom-output
 
       - id: action
         uses: .
         with:
-          context: tests/fixtures/cache-context
-          file: tests/fixtures/cache-context/Dockerfile
-          tags: test-cache-image:latest
-          cache-from: type=local,src=/tmp/cache-src
-          cache-to: type=local,dest=/tmp/cache-dest,mode=max
-          no-cache-filters: base
-          network: host
-          cgroup-parent: /docker
+          context: tests/fixtures/metadata-context
+          file: tests/fixtures/metadata-context/Dockerfile
+          tags: test-labels-image:latest
+          labels: |
+            org.opencontainers.image.title=Test Image
+            org.opencontainers.image.version=1.0.0
+          annotations: |
+            org.opencontainers.image.description=Test annotation
+          provenance: 'false'
+          sbom: 'false'
+          sbom-dir: /tmp/sbom-output
+          attests: 'type=provenance,mode=min'
           load: 'false'
           push: 'false'
           buildx-fallback: 'true'
@@ -41,7 +48,7 @@ jobs:
         run: |
           echo "outcome: $OUTCOME"
           if [ "$OUTCOME" = "success" ]; then
-            echo "PASS: action succeeded with cache/network/cgroup-parent inputs"
+            echo "PASS: action succeeded with labels/annotations/provenance/sbom inputs"
           else
             echo "FAIL: expected success, got '$OUTCOME'"
             exit 1

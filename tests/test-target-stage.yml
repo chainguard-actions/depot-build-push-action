@@ -1,4 +1,4 @@
-name: Test - Cache options, network, and cgroup-parent with buildx fallback
+name: Test - Target stage, build-contexts, build-platform, and outputs with buildx fallback
 on:
   workflow_dispatch:
 
@@ -17,19 +17,21 @@ jobs:
 
       - name: Set up Docker Buildx
         run: |
-          docker buildx create --use --name cache-builder 2>/dev/null || true
+          docker buildx create --use --name target-builder 2>/dev/null || true
+
+      - name: Create output directory
+        run: mkdir -p /tmp/build-output
 
       - id: action
         uses: .
         with:
-          context: tests/fixtures/cache-context
-          file: tests/fixtures/cache-context/Dockerfile
-          tags: test-cache-image:latest
-          cache-from: type=local,src=/tmp/cache-src
-          cache-to: type=local,dest=/tmp/cache-dest,mode=max
-          no-cache-filters: base
-          network: host
-          cgroup-parent: /docker
+          context: tests/fixtures/multistage-context
+          file: tests/fixtures/multistage-context/Dockerfile
+          tags: test-target-image:latest
+          target: base
+          build-contexts: extra=tests/fixtures/docker-context
+          build-platform: linux/amd64
+          outputs: type=local,dest=/tmp/build-output
           load: 'false'
           push: 'false'
           buildx-fallback: 'true'
@@ -41,7 +43,7 @@ jobs:
         run: |
           echo "outcome: $OUTCOME"
           if [ "$OUTCOME" = "success" ]; then
-            echo "PASS: action succeeded with cache/network/cgroup-parent inputs"
+            echo "PASS: action succeeded with target/build-contexts/build-platform/outputs inputs"
           else
             echo "FAIL: expected success, got '$OUTCOME'"
             exit 1

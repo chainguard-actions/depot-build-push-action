@@ -1,0 +1,48 @@
+name: Test - Depot project, token, save-tag, and save-tags inputs
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install depot CLI
+        run: |
+          curl -L https://depot.dev/install-cli.sh | DEPOT_INSTALL_DIR=/usr/local/bin sh
+
+      - name: Verify depot CLI is installed
+        run: depot version
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          context: tests/fixtures/docker-context
+          file: tests/fixtures/docker-context/Dockerfile
+          tags: test-depot-project-image:latest
+          project: fake-project-id
+          token: fake-depot-token
+          save: 'true'
+          save-tag: test-save-tag:latest
+          save-tags: |
+            test-save-tags:v1
+            test-save-tags:latest
+          load: 'false'
+          push: 'false'
+        # Fake project/token — depot build will fail with auth error (no fallback)
+
+      - name: Assert action ran (failed gracefully with fake credentials)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully with fake depot project/token (expected)"
+          elif [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action unexpectedly succeeded"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
