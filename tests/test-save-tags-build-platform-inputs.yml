@@ -1,4 +1,4 @@
-name: Test depot build-push-action - cache inputs
+name: Test depot build-push-action - save-tags and build-platform inputs
 on:
   workflow_dispatch:
 jobs:
@@ -9,23 +9,21 @@ jobs:
 
       - name: Create minimal Dockerfile for test
         run: |
-          mkdir -p /tmp/depot-cache-ctx
-          cat > /tmp/depot-cache-ctx/Dockerfile <<'EOF'
-          FROM scratch AS deps
-          LABEL test=cache-deps
-          FROM scratch AS final
-          LABEL test=cache-final
+          mkdir -p /tmp/depot-savetags-ctx
+          cat > /tmp/depot-savetags-ctx/Dockerfile <<'EOF'
+          FROM scratch
+          LABEL test=save-tags
           EOF
 
       - id: action
         uses: .
         continue-on-error: true
         with:
-          context: /tmp/depot-cache-ctx
-          tags: localhost/test-cache:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          no-cache-filters: deps
+          context: /tmp/depot-savetags-ctx
+          tags: localhost/test-savetags:latest
+          save: "true"
+          save-tags: myorg/myimage:v1.0.0
+          build-platform: linux/amd64
           # No token — action will fail with auth error
 
       - name: Assert action ran (failed gracefully without token)
