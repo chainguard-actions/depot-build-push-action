@@ -1,0 +1,35 @@
+name: Test save with single save-tag
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install fake depot CLI
+        run: |
+          rm -rf /tmp/fake-depot /tmp/fake-bin
+          mkdir -p /tmp/fake-bin
+          cp tests/fixtures/fake-depot.sh /tmp/fake-bin/depot
+          chmod +x /tmp/fake-bin/depot
+          echo "/tmp/fake-bin" >> "$GITHUB_PATH"
+      - id: action
+        uses: .
+        with:
+          context: .
+          token: fake-depot-token
+          save: 'true'
+          save-tag: my-single-tag
+      - name: Assert depot build arguments
+        run: |
+          ARGS=/tmp/fake-depot/args
+          cat "$ARGS"
+          has_pair() { awk -v f="$1" -v v="$2" 'prev==f && $0==v {found=1} {prev=$0} END{exit !found}' "$ARGS"; }
+          fail=0
+          grep -qxF -- --save "$ARGS" || { echo "FAIL: --save"; fail=1; }
+          has_pair --save-tag my-single-tag || { echo "FAIL: --save-tag"; fail=1; }
+          count=$(grep -cxF -- --save-tag "$ARGS")
+          echo "save-tag count: $count"
+          [ "$count" = "1" ] || { echo "FAIL: expected exactly one --save-tag"; fail=1; }
+          [ $fail -eq 0 ] || exit 1
+          echo "PASS"

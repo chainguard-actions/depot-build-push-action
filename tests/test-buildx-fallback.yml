@@ -1,0 +1,43 @@
+name: Test buildx fallback
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      FAKE_DEPOT_FAIL: '1'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install fake depot and docker CLIs
+        run: |
+          rm -rf /tmp/fake-depot /tmp/fake-bin
+          mkdir -p /tmp/fake-bin
+          cp tests/fixtures/fake-depot.sh /tmp/fake-bin/depot
+          cp tests/fixtures/fake-docker.sh /tmp/fake-bin/docker
+          chmod +x /tmp/fake-bin/depot /tmp/fake-bin/docker
+          echo "/tmp/fake-bin" >> "$GITHUB_PATH"
+      - id: action
+        uses: .
+        with:
+          context: .
+          token: fake-depot-token
+          buildx-fallback: 'true'
+          project: abc123xyz
+          tags: myimage:fallback
+      - name: Assert fallback to docker buildx build
+        env:
+          DIGEST: ${{ steps.action.outputs.digest }}
+        run: |
+          echo "depot args:"; cat /tmp/fake-depot/args
+          echo "docker args:"; cat /tmp/fake-depot/docker-args || true
+          echo "digest: $DIGEST"
+          D=/tmp/fake-depot/docker-args
+          fail=0
+          [ -f "$D" ] || { echo "FAIL: docker buildx build was not invoked"; exit 1; }
+          has_pair() { awk -v f="$1" -v v="$2" 'prev==f && $0==v {found=1} {prev=$0} END{exit !found}' "$D"; }
+          has_pair --tag myimage:fallback || { echo "FAIL: --tag missing in buildx args"; fail=1; }
+          grep -qxF -- --project "$D" && { echo "FAIL: depot-only --project passed to buildx"; fail=1; }
+          [ "$(tail -n 1 "$D")" = "." ] || { echo "FAIL: context should be '.'"; fail=1; }
+          [ "$DIGEST" = "sha256:fallbackdigest0003" ] || { echo "FAIL: digest from fallback"; fail=1; }
+          [ $fail -eq 0 ] || exit 1
+          echo "PASS"

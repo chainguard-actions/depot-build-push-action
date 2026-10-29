@@ -1,0 +1,85 @@
+name: Test buildx passthrough flags
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install fake depot CLI
+        run: |
+          rm -rf /tmp/fake-depot /tmp/fake-bin
+          mkdir -p /tmp/fake-bin
+          cp tests/fixtures/fake-depot.sh /tmp/fake-bin/depot
+          chmod +x /tmp/fake-bin/depot
+          echo "/tmp/fake-bin" >> "$GITHUB_PATH"
+      - id: action
+        uses: .
+        with:
+          context: .
+          token: fake-depot-token
+          project: abc123xyz
+          add-hosts: |
+            docker:10.180.0.1
+            other:10.180.0.2
+          allow: network.host,security.insecure
+          annotations: |
+            index:org.opencontainers.image.description=hello
+          attests: |
+            type=sbom,generator=image
+          build-contexts: |
+            alpine=docker-image://alpine:3
+          cache-from: |
+            type=local,src=/tmp/cache-in
+          cache-to: |
+            type=local,dest=/tmp/cache-out
+          cgroup-parent: my-cgroup
+          labels: |
+            org.example.a=one
+            org.example.b=two
+          network: host
+          no-cache-filters: |
+            builder
+          sbom-dir: /tmp/sbom-out
+          shm-size: 2g
+          ssh: |
+            default
+          ulimit: |
+            nofile=1024:1024
+      - name: Assert depot build arguments
+        run: |
+          ARGS=/tmp/fake-depot/args
+          cat "$ARGS"
+          has_pair() { awk -v f="$1" -v v="$2" 'prev==f && $0==v {found=1} {prev=$0} END{exit !found}' "$ARGS"; }
+          fail=0
+          has_pair --add-host docker:10.180.0.1 || { echo "FAIL: --add-host docker"; fail=1; }
+          has_pair --add-host other:10.180.0.2 || { echo "FAIL: --add-host other"; fail=1; }
+          has_pair --allow network.host,security.insecure || { echo "FAIL: --allow"; fail=1; }
+          has_pair --annotation index:org.opencontainers.image.description=hello || { echo "FAIL: --annotation"; fail=1; }
+          has_pair --attest type=sbom,generator=image || { echo "FAIL: --attest"; fail=1; }
+          has_pair --build-context alpine=docker-image://alpine:3 || { echo "FAIL: --build-context"; fail=1; }
+          has_pair --cache-from type=local,src=/tmp/cache-in || { echo "FAIL: --cache-from"; fail=1; }
+          has_pair --cache-to type=local,dest=/tmp/cache-out || { echo "FAIL: --cache-to"; fail=1; }
+          has_pair --cgroup-parent my-cgroup || { echo "FAIL: --cgroup-parent"; fail=1; }
+          has_pair --label org.example.a=one || { echo "FAIL: --label a"; fail=1; }
+          has_pair --label org.example.b=two || { echo "FAIL: --label b"; fail=1; }
+          has_pair --network host || { echo "FAIL: --network"; fail=1; }
+          has_pair --no-cache-filter builder || { echo "FAIL: --no-cache-filter"; fail=1; }
+          has_pair --sbom-dir /tmp/sbom-out || { echo "FAIL: --sbom-dir"; fail=1; }
+          has_pair --shm-size 2g || { echo "FAIL: --shm-size"; fail=1; }
+          has_pair --ssh default || { echo "FAIL: --ssh"; fail=1; }
+          has_pair --ulimit nofile=1024:1024 || { echo "FAIL: --ulimit"; fail=1; }
+          has_pair --project abc123xyz || { echo "FAIL: --project"; fail=1; }
+          [ $fail -eq 0 ] || exit 1
+          echo "PASS"
+      - name: Assert outputs
+        env:
+          BUILD_ID: ${{ steps.action.outputs.build-id }}
+          DIGEST: ${{ steps.action.outputs.digest }}
+        run: |
+          echo "build-id: $BUILD_ID digest: $DIGEST"
+          if [ "$BUILD_ID" != "fakebuild123" ] || [ "$DIGEST" != "sha256:fakedigest0002" ]; then
+            echo "FAIL: unexpected outputs"
+            exit 1
+          fi
+          echo "PASS"

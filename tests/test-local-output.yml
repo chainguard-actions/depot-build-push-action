@@ -1,0 +1,37 @@
+name: Test local output omits iidfile
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install fake depot CLI
+        run: |
+          rm -rf /tmp/fake-depot /tmp/fake-bin
+          mkdir -p /tmp/fake-bin
+          cp tests/fixtures/fake-depot.sh /tmp/fake-bin/depot
+          chmod +x /tmp/fake-bin/depot
+          echo "/tmp/fake-bin" >> "$GITHUB_PATH"
+      - id: action
+        uses: .
+        with:
+          context: .
+          token: fake-depot-token
+          outputs: type=local,dest=out
+      - name: Assert arguments and outputs
+        env:
+          IMAGEID: ${{ steps.action.outputs.imageid }}
+          DIGEST: ${{ steps.action.outputs.digest }}
+        run: |
+          ARGS=/tmp/fake-depot/args
+          cat "$ARGS"
+          echo "imageid: '$IMAGEID' digest: '$DIGEST'"
+          has_pair() { awk -v f="$1" -v v="$2" 'prev==f && $0==v {found=1} {prev=$0} END{exit !found}' "$ARGS"; }
+          fail=0
+          has_pair --output type=local,dest=out || { echo "FAIL: --output"; fail=1; }
+          grep -qxF -- --iidfile "$ARGS" && { echo "FAIL: --iidfile should be omitted for local output"; fail=1; }
+          [ -z "$IMAGEID" ] || { echo "FAIL: imageid should be empty"; fail=1; }
+          [ "$DIGEST" = "sha256:fakedigest0002" ] || { echo "FAIL: digest"; fail=1; }
+          [ $fail -eq 0 ] || exit 1
+          echo "PASS"

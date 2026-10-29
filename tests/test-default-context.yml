@@ -1,0 +1,33 @@
+name: Test default git context
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install fake depot CLI
+        run: |
+          rm -rf /tmp/fake-depot /tmp/fake-bin
+          mkdir -p /tmp/fake-bin
+          cp tests/fixtures/fake-depot.sh /tmp/fake-bin/depot
+          chmod +x /tmp/fake-bin/depot
+          echo "/tmp/fake-bin" >> "$GITHUB_PATH"
+      - id: action
+        uses: .
+        with:
+          token: fake-depot-token
+      - name: Assert default context and git auth secret
+        run: |
+          ARGS=/tmp/fake-depot/args
+          cat "$ARGS"
+          LAST=$(tail -n 1 "$ARGS")
+          echo "context: $LAST"
+          fail=0
+          case "$LAST" in
+            http*://*.git#*) ;;
+            *) echo "FAIL: expected a git URL context"; fail=1 ;;
+          esac
+          grep -q '^GIT_AUTH_TOKEN=' /tmp/fake-depot/secrets || { echo "FAIL: GIT_AUTH_TOKEN secret missing"; fail=1; }
+          [ $fail -eq 0 ] || exit 1
+          echo "PASS"

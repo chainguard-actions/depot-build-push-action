@@ -1,0 +1,67 @@
+name: Test basic build
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install fake depot CLI
+        run: |
+          rm -rf /tmp/fake-depot /tmp/fake-bin
+          mkdir -p /tmp/fake-bin
+          cp tests/fixtures/fake-depot.sh /tmp/fake-bin/depot
+          chmod +x /tmp/fake-bin/depot
+          echo "/tmp/fake-bin" >> "$GITHUB_PATH"
+      - id: action
+        uses: .
+        with:
+          context: .
+          token: fake-depot-token
+          tags: |
+            myimage:latest
+            myimage:1.0.0
+          build-args: |
+            FOO=bar
+            BAZ=qux
+      - name: Assert outputs
+        env:
+          IMAGEID: ${{ steps.action.outputs.imageid }}
+          DIGEST: ${{ steps.action.outputs.digest }}
+          BUILD_ID: ${{ steps.action.outputs.build-id }}
+          PROJECT_ID: ${{ steps.action.outputs.project-id }}
+          METADATA: ${{ steps.action.outputs.metadata }}
+        run: |
+          echo "imageid: $IMAGEID"; echo "digest: $DIGEST"
+          echo "build-id: $BUILD_ID"; echo "project-id: $PROJECT_ID"
+          echo "metadata: $METADATA"
+          fail=0
+          [ "$IMAGEID" = "sha256:fakeimageid0001" ] || { echo "FAIL: imageid"; fail=1; }
+          [ "$DIGEST" = "sha256:fakedigest0002" ] || { echo "FAIL: digest"; fail=1; }
+          [ "$BUILD_ID" = "fakebuild123" ] || { echo "FAIL: build-id"; fail=1; }
+          [ "$PROJECT_ID" = "fakeproj456" ] || { echo "FAIL: project-id"; fail=1; }
+          echo "$METADATA" | grep -q 'fakebuild123' || { echo "FAIL: metadata"; fail=1; }
+          [ $fail -eq 0 ] || exit 1
+          echo "PASS"
+      - name: Assert depot build arguments
+        run: |
+          ARGS=/tmp/fake-depot/args
+          cat "$ARGS"
+          has_pair() { awk -v f="$1" -v v="$2" 'prev==f && $0==v {found=1} {prev=$0} END{exit !found}' "$ARGS"; }
+          fail=0
+          has_pair --tag myimage:latest || { echo "FAIL: --tag myimage:latest"; fail=1; }
+          has_pair --tag myimage:1.0.0 || { echo "FAIL: --tag myimage:1.0.0"; fail=1; }
+          has_pair --build-arg FOO=bar || { echo "FAIL: --build-arg FOO=bar"; fail=1; }
+          has_pair --build-arg BAZ=qux || { echo "FAIL: --build-arg BAZ=qux"; fail=1; }
+          grep -qxF -- --iidfile "$ARGS" || { echo "FAIL: --iidfile missing"; fail=1; }
+          grep -qxF -- --metadata-file "$ARGS" || { echo "FAIL: --metadata-file missing"; fail=1; }
+          grep -qxF -- --provenance "$ARGS" || { echo "FAIL: default --provenance missing"; fail=1; }
+          grep -qxF -- --push "$ARGS" && { echo "FAIL: unexpected --push"; fail=1; }
+          grep -qxF -- --load "$ARGS" && { echo "FAIL: unexpected --load"; fail=1; }
+          LAST=$(tail -n 1 "$ARGS")
+          [ "$LAST" = "." ] || { echo "FAIL: context should be '.' got '$LAST'"; fail=1; }
+          grep -q '^GIT_AUTH_TOKEN=' /tmp/fake-depot/secrets && { echo "FAIL: GIT_AUTH_TOKEN should not be passed for local context"; fail=1; }
+          TOKEN=$(cat /tmp/fake-depot/token)
+          [ "$TOKEN" = "fake-depot-token" ] || { echo "FAIL: DEPOT_TOKEN not passed to depot"; fail=1; }
+          [ $fail -eq 0 ] || exit 1
+          echo "PASS"

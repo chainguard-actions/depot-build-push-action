@@ -1,0 +1,67 @@
+name: Test depot-specific flags
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install fake depot CLI
+        run: |
+          rm -rf /tmp/fake-depot /tmp/fake-bin
+          mkdir -p /tmp/fake-bin
+          cp tests/fixtures/fake-depot.sh /tmp/fake-bin/depot
+          chmod +x /tmp/fake-bin/depot
+          echo "/tmp/fake-bin" >> "$GITHUB_PATH"
+      - id: action
+        uses: .
+        with:
+          context: .
+          token: fake-depot-token
+          project: abc123xyz
+          build-platform: linux/arm64
+          platforms: linux/amd64,linux/arm64
+          lint: 'true'
+          lint-fail-on: error
+          save: 'true'
+          save-tags: |
+            tag-one
+            tag-two
+          push: 'true'
+          no-cache: 'true'
+          pull: 'true'
+          target: final
+          file: ./Dockerfile.custom
+      - name: Assert depot build arguments
+        run: |
+          ARGS=/tmp/fake-depot/args
+          cat "$ARGS"
+          has_pair() { awk -v f="$1" -v v="$2" 'prev==f && $0==v {found=1} {prev=$0} END{exit !found}' "$ARGS"; }
+          has() { grep -qxF -- "$1" "$ARGS"; }
+          fail=0
+          has_pair --project abc123xyz || { echo "FAIL: --project"; fail=1; }
+          has_pair --build-platform linux/arm64 || { echo "FAIL: --build-platform"; fail=1; }
+          has_pair --platform linux/amd64,linux/arm64 || { echo "FAIL: --platform"; fail=1; }
+          has --lint || { echo "FAIL: --lint"; fail=1; }
+          has_pair --lint-fail-on error || { echo "FAIL: --lint-fail-on"; fail=1; }
+          has --save || { echo "FAIL: --save"; fail=1; }
+          has_pair --save-tag tag-one || { echo "FAIL: --save-tag tag-one"; fail=1; }
+          has_pair --save-tag tag-two || { echo "FAIL: --save-tag tag-two"; fail=1; }
+          has --push || { echo "FAIL: --push"; fail=1; }
+          has --no-cache || { echo "FAIL: --no-cache"; fail=1; }
+          has --pull || { echo "FAIL: --pull"; fail=1; }
+          has_pair --target final || { echo "FAIL: --target"; fail=1; }
+          has_pair --file ./Dockerfile.custom || { echo "FAIL: --file"; fail=1; }
+          [ $fail -eq 0 ] || exit 1
+          echo "PASS"
+      - name: Assert outputs
+        env:
+          BUILD_ID: ${{ steps.action.outputs.build-id }}
+          PROJECT_ID: ${{ steps.action.outputs.project-id }}
+        run: |
+          echo "build-id: $BUILD_ID project-id: $PROJECT_ID"
+          if [ "$BUILD_ID" != "fakebuild123" ] || [ "$PROJECT_ID" != "fakeproj456" ]; then
+            echo "FAIL: unexpected build/project id"
+            exit 1
+          fi
+          echo "PASS"

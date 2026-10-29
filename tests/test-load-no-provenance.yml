@@ -1,0 +1,30 @@
+name: Test load disables default provenance
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install fake depot CLI
+        run: |
+          rm -rf /tmp/fake-depot /tmp/fake-bin
+          mkdir -p /tmp/fake-bin
+          cp tests/fixtures/fake-depot.sh /tmp/fake-bin/depot
+          chmod +x /tmp/fake-bin/depot
+          echo "/tmp/fake-bin" >> "$GITHUB_PATH"
+      - id: action
+        uses: .
+        with:
+          context: .
+          token: fake-depot-token
+          load: 'true'
+      - name: Assert arguments
+        run: |
+          ARGS=/tmp/fake-depot/args
+          cat "$ARGS"
+          fail=0
+          grep -qxF -- --load "$ARGS" || { echo "FAIL: --load missing"; fail=1; }
+          grep -qxF -- --provenance "$ARGS" && { echo "FAIL: --provenance should not be set with load"; fail=1; }
+          [ $fail -eq 0 ] || exit 1
+          echo "PASS"
